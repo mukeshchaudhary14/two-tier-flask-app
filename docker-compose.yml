@@ -2,6 +2,7 @@ version: "3.8"
 
 services:
   mysql:
+    user: "${UID}:${GID}" 
     image: mysql:5.7
     container_name: mysql
     environment:
@@ -21,7 +22,7 @@ services:
       retries: 5
       start_period: 60s
 
- flask-app:
+  flask-app:
     image: makug/two-tier-flask-app:latest
     container_name: flask-app
     ports:
