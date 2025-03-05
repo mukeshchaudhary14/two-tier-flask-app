@@ -24,7 +24,7 @@ services:
 
   flask-app:
     image: makug/two-tier-flask-app:latest
-    container_name: flask-app-n
+    container_name: flask-app
     ports:
       - "5000:5000"
     environment:
