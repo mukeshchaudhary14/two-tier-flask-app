@@ -154,4 +154,246 @@ kubectl delete -f k8s/mysql-service.yaml
 kubectl delete -f k8s/mysql-pvc.yaml
 kubectl delete -f k8s/mysql-pv.yaml
 ```
+# 🚀 Deploying a Two-Tier Flask App Using Kubernetes, Kind & Helm
 
+## 📌 Overview
+
+This guide provides step-by-step instructions to deploy a **two-tier Flask application** using **Kubernetes (Kind) and Helm**. The deployment includes **frontend and backend services** with MySQL as the database.
+
+---
+
+## 🛠️ Prerequisites
+
+Before you begin, ensure you have the following installed:
+
+- ✅ Docker 🐳
+- ✅ Kubernetes (Kind) ⛵
+- ✅ Helm ⛑️
+- ✅ Kubectl 📡
+
+---
+
+## 🔥 Step 1: Clone the Project Repository
+
+```sh
+# Clone the project from GitHub
+$ git clone https://github.com/your-repo/two-tier-flask-app.git
+$ cd two-tier-flask-app
+```
+
+---
+
+## 🏗️ Step 2: Build & Push Docker Images
+
+We will build and push **flask-app-docker-file** image to Docker Hub.
+
+```sh
+# Navigate to two-tier-flask-app folder and build the image
+$ docker build -t your-dockerhub-username/flaskapp:latest .
+
+# Push the image to Docker Hub
+$ docker push your-dockerhub-username/flaskapp:latest
+```
+
+---
+
+## 📌 Step 3 : Create Helm Charts for MySQL
+
+```sh
+$ helm create mysql-chart
+$ cd mysql-chart
+```
+
+Modify `values.yaml` to set the **Docker image** and **environment variables**:
+
+```yaml
+image:
+  repository: mysql
+  tag: "latest"
+env:
+  mysqlrootpw: admin
+  mysqldb: mydb
+  mysqluser: admin
+  mysqlpass: admin
+service:
+  type: ClusterIP
+  port: 3306
+```
+
+Modify `deployment.yaml` to **update ports**:
+
+```yaml
+containers:
+  - name:  {{ .Chart.Name }}
+    image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+    env:
+      - name: MYSQL_ROOT_PASSWORD
+        value: {{ .Values.env.mysqlrootpw }}
+      - name: MYSQL_DATABASE
+        value: {{ .Values.env.mysqldb }}
+      - name: MYSQL_USER
+        value: {{ .Values.env.mysqluser }}
+      - name: MYSQL_PASSWORD
+        value: {{ .Values.env.mysqlpass }}
+```
+
+### 📌 Generate Flask-App Helm Chart
+
+```sh
+$ helm create flask-app-chart
+$ cd flask-app-chart
+```
+
+Modify `values.yaml` to set the **Docker image**:
+
+```yaml
+image:
+  repository: your_docker_hub_username/flaskapp
+  pullPolicy: IfNotPresent
+  tag: "latest"
+env:
+  mysqlhost: 10.96.24.184  # it is a Cluster IP of MySQL by running command [kubectl get svc -n mysql]
+  mysqldb: mydb
+  mysqluser: admin
+  mysqlpass: admin
+service:
+  type: NodePort  
+  port: 80
+  targetPort: 5000
+  nodePort: 30008  
+```
+
+Modify `deployment.yaml` to **update ports**:
+
+```yaml
+containers:
+  - name:  {{ .Chart.Name }}
+    image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+    env:
+      - name: MYSQL_HOST
+        value: {{ .Values.env.mysqlhost }}
+      - name: MYSQL_DATABASE
+        value: {{ .Values.env.mysqldb }}
+      - name: MYSQL_USER
+        value: {{ .Values.env.mysqluser }}
+      - name: MYSQL_PASSWORD
+        value: {{ .Values.env.mysqlpass }}
+    ports:
+      - name: http
+        containerPort: {{ .Values.service.targetPort }}
+```
+
+Modify `service.yaml` to configure the service:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: flask-app-service
+spec:
+  selector:
+    app: flask-app
+  type: {{ .Values.service.type }}
+  ports:
+    - protocol: TCP
+      port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.targetPort }}
+      nodePort: {{ .Values.service.nodePort }}  # Only used if type is NodePort
+```
+
+---
+
+## 📦 Step 5: Package & Install Helm Charts
+
+### 🔹 Package the MySQL Chart
+
+```sh
+$ cd two-tier-flask-app
+$ helm package mysql-chart
+$ helm install mysql-chart ./mysql-chart
+```
+
+📌 **Expected Output:**
+
+```
+mysql-chart deployed successfully! 🎉
+```
+
+### 🔹 Package the Flask-App Chart
+
+```sh
+$ cd two-tier-flask-app
+$ helm package flask-app-chart
+$ helm install flask-app-chart ./flask-app-chart
+```
+
+📌 **Expected Output:**
+
+```
+flask-app-chart deployed successfully! 🚀
+```
+
+---
+
+## 🔄 Step 6: Verify Deployments
+
+Check all running **pods**:
+
+```sh
+$ kubectl get pods
+```
+
+📌 **Expected Output:**
+
+```
+NAME                             READY   STATUS    RESTARTS   AGE
+flask-app-chart-xxxxxxx          1/1     Running   0          30s
+flask-app-chart-xxxxxxx          1/1     Running   0          30s
+mysql-xxxxxxx                    1/1     Running   0          30s
+```
+
+Check **services**:
+
+```sh
+$ kubectl get svc
+```
+
+📌 **Expected Output:**
+
+```
+NAME                 TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)
+
+flask-app-service     ClusterIP   10.96.0.2        <none>        3000/TCP
+mysql-service        ClusterIP   10.96.0.3        <none>        3306/TCP
+```
+
+---
+
+## 🌎 Step 7: Access the Application
+
+If using **Ingress**:
+
+```sh
+$ echo "http://your-ingress-domain"
+```
+
+If using **NodePort**:
+
+```sh
+$ kubectl get svc flask-app-service -o=jsonpath='{.spec.ports[0].nodePort}'
+$ echo "http://localhost:<NodePort>"
+```
+
+📌 **Expected Output:**
+
+```
+http://localhost:3000
+```
+
+---
+
+## 🎯 Conclusion
+
+Congratulations! 🎉 You have successfully deployed a **two-tier Flask app** using **Kubernetes (Kind) and Helm**. You can now access your app via the exposed URL.
+
+Happy coding! 🚀🔥
